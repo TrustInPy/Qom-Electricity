@@ -1,7 +1,16 @@
+.venv/
+.vscode/
+__pucache__/
+
 .env
 bot.db
-__pycache__/
+.python-version
+
 *.pyc
 *.session
+*.session-journal
 *logs
 *.venv
+
+start.sh
+start_win.bat

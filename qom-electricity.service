@@ -1,0 +1,15 @@
+[Unit]
+Description=Qom-Electricity
+After=network.target
+
+[Service]
+Type=simple
+User=username
+Group=username
+Restart=always
+RestartSec=15
+ExecStart=/path/to/Qom-Electricity/start.sh
+ExecStop=/usr/bin/kill "$MAINPID"
+
+[Install]
+WantedBy=multi-user.target
