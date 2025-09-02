@@ -1,10 +1,11 @@
+import re
 import logging
 from datetime import datetime
 from telethon import events
 from config import ADMIN_USER_ID, DEFAULT_URL
 import db
 from crawler import crawl, page_signature
-from notifier import send_matching_sections
+from notifier import send_matching_sections, send_long_message
 
 log = logging.getLogger("commands")
 
@@ -249,3 +250,115 @@ def register(client):
             await event.client.send_file(event.chat_id, DB_PATH, caption="bot.db")
         else:
             await event.reply("DB file not found.")
+
+    # ---- helper: resolve chat title for pretty listing ----
+    async def _chat_title(client, chat_id: int) -> str:
+        try:
+            ent = await client.get_entity(chat_id)
+            if hasattr(ent, "title") and ent.title:
+                return ent.title
+            if hasattr(ent, "first_name") and ent.first_name:
+                return ent.first_name
+            return "?"
+        except Exception:
+            return "?"
+
+    # ===== List groups =====
+    @client.on(events.NewMessage(pattern=r"^/groups$", func=is_admin))
+    async def admin_list_groups(event):
+        chats = db.list_chats()
+        if not chats:
+            await event.reply("هیچ گروهی ثبت نشده.")
+            return
+        lines = []
+        for chat_id, _url, created_at in chats:
+            name = await _chat_title(event.client, chat_id)
+            lines.append(f"• {name} ({chat_id})")
+        # طول پیام را کنترل کنیم
+        text = "گروه‌های ثبت‌شده:\n" + "\n".join(lines)
+        if len(text) > 3500:
+            text = text[:3500] + "\n..."
+        await event.reply(text)
+
+    # ---- extract text: from inline args OR from replied message ----
+    def _extract_broadcast_text(event, inline_text: str) -> str:
+        if inline_text:
+            return inline_text.strip()
+        # اگر ریپلای کرده بود
+        if event.is_reply:
+            # فقط متن ساده را برمی‌داریم (بدون مدیا)
+            return (event.message.reply_to_msg_id and "") or ""
+        return ""
+
+    # نسخه بهتر: ریپلای را به‌طور مطمئن بخوانیم
+    async def _get_broadcast_text(event, inline_text: str):
+        inline_text = (inline_text or "").strip()
+        if inline_text:
+            return inline_text
+        if event.is_reply:
+            try:
+                reply = await event.get_reply_message()
+                if reply and (reply.message or "").strip():
+                    return reply.message.strip()
+            except Exception:
+                pass
+        return ""
+
+    # ===== Broadcast to ALL groups =====
+    @client.on(events.NewMessage(pattern=r"^/broadcast_all(?:\s+(.+))?$", func=is_admin))
+    async def admin_broadcast_all(event):
+        msg_text = await _get_broadcast_text(event, (event.pattern_match.group(1) or ""))
+        if not msg_text:
+            await event.reply("متنی برای ارسال پیدا نشد. یا بعد از دستور بنویسید یا روی پیام ریپلای کنید.")
+            return
+
+        chats = db.list_chats()
+        if not chats:
+            await event.reply("هیچ گروهی ثبت نشده.")
+            return
+
+        ok, fail = 0, 0
+        for chat_id, _url, _created in chats:
+            try:
+                await send_long_message(event.client, chat_id, msg_text)
+                ok += 1
+            except Exception as e:
+                fail += 1
+        await event.reply(f"ارسال به همه انجام شد. موفق: {ok} | ناموفق: {fail}")
+
+    # ===== Broadcast to selected groups by IDs =====
+    # شکل ۱: /broadcast -100123,-100456 سلام
+    # شکل ۲: (ریپلای به یک پیام) /broadcast -100123,-100456
+    @client.on(events.NewMessage(pattern=r"^/broadcast\s+([-,\d ]+)(?:\s+(.+))?$", func=is_admin))
+    async def admin_broadcast_selected(event):
+        raw_ids = (event.pattern_match.group(1) or "").strip()
+        msg_text = await _get_broadcast_text(event, (event.pattern_match.group(2) or ""))
+        if not msg_text:
+            await event.reply("متنی برای ارسال پیدا نشد. یا بعد از دستور بنویسید یا روی پیام ریپلای کنید.")
+            return
+
+        # parse IDs: allow spaces and commas
+        ids = []
+        for tok in re.split(r"[,\s]+", raw_ids):
+            tok = tok.strip()
+            if not tok:
+                continue
+            try:
+                ids.append(int(tok))
+            except ValueError:
+                pass
+
+        if not ids:
+            await event.reply("هیچ chat_id معتبری ارائه نشد.")
+            return
+
+        ok, fail = 0, 0
+        for cid in ids:
+            try:
+                await send_long_message(event.client, cid, msg_text)
+                ok += 1
+            except Exception:
+                fail += 1
+
+        await event.reply(f"ارسال انجام شد. موفق: {ok} | ناموفق: {fail}")
+        
