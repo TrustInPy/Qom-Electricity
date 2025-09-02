@@ -69,12 +69,7 @@ def extract_lines(soup: BeautifulSoup) -> List[str]:
         txt = strip_decor_prefix(txt)   # drop leading ❌, 🔻, bullets, etc.
         if txt:
             lines.append(txt)
-
-    seen, out = set(), []
-    for ln in lines:
-        if ln not in seen:
-            seen.add(ln); out.append(ln)
-    return out
+    return lines
 
 def split_sections(lines: List[str]) -> List[Tuple[str, List[str]]]:
     sections: List[Tuple[str, List[str]]] = []

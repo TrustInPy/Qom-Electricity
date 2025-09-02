@@ -15,9 +15,9 @@ GROUP_HELP = (
     "• /addkw <کلیدواژه> — افزودن کلیدواژه برای این گروه\n"
     "• /delkw <کلیدواژه> — حذف کلیدواژه\n"
     "• /listkw — نمایش کلیدواژه‌های ثبت‌شده\n"
-    "• /check — اجرای بررسی دستی (بی‌صدا؛ خروجی: ارسال آیتم‌های منطبق)\n"
+    "• /check — اجرای بررسی دستی\n"
     "\n"
-    "نکته: آدرس صفحه ثابت است و از .env خوانده می‌شود."
+    "جهت پیدا کردن کلید واژه باید از <a href='https://qepd.co.ir/fa-IR/DouranPortal/6423/page/%D8%AE%D8%A7%D9%85%D9%88%D8%B4%DB%8C-%D9%87%D8%A7'>این صفحه</a> اقدام کنید."
 )
 
 ADMIN_HELP = (
@@ -48,7 +48,7 @@ def register(client):
     @client.on(events.NewMessage(pattern=r"^/help$"))
     async def help_handler(event):
         if event.is_group or event.is_channel:
-            await event.reply(GROUP_HELP)
+            await event.reply(GROUP_HELP, parse_mode="html")
 
     @client.on(events.NewMessage(pattern=r"^/addkw\s+(.+)$"))
     async def addkw_handler(event):
